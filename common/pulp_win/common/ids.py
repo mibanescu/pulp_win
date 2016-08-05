@@ -17,7 +17,7 @@ TYPE_ID_IMPORTER_WIN = "win_importer"
 WIN_IMPORTER_ID = TYPE_ID_IMPORTER_WIN
 
 # Set when the distributor is added to the repo and later to refer to it specifically
-WIN_DISTRIBUTOR_ID = 'win_distributor'
+WIN_DISTRIBUTOR_ID = TYPE_ID_DISTRIBUTOR_WIN
 
 TYPE_ID_MSI = "msi"
 UNIT_KEY_MSI = (

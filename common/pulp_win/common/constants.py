@@ -31,8 +31,6 @@ CONFIG_REMOVE_MISSING_UNITS_DEFAULT = False
 CONFIG_SERVE_HTTP      = 'serve_http'
 CONFIG_SERVE_HTTPS     = 'serve_https'
 
-CONFIG_REPO_SUBDIR = "repo"
-
 # Profiler configuration key name
 #CONFIG_APPLICABILITY_REPORT_STYLE = 'report_style'
 #APPLICABILITY_REPORT_STYLE_BY_UNITS = 'by_units'
@@ -40,3 +38,15 @@ CONFIG_REPO_SUBDIR = "repo"
 
 PUBLISH_REPO_STEP = 'publish_repo'
 PUBLISH_MODULES_STEP = "publish_modules"
+PUBLISH_MSI_STEP = "publish_msi"
+PUBLISH_REPOMD = "publish_repomd"
+
+PUBLISH_STEPS = (PUBLISH_REPO_STEP, PUBLISH_MODULES_STEP, PUBLISH_MSI_STEP,
+                 PUBLISH_REPOMD)
+
+REPO_NODE_PKG = 'win-repo'
+
+# Configuration constants for export distributors
+PUBLISH_HTTP_KEYWORD = 'http'
+PUBLISH_HTTPS_KEYWORD = 'https'
+PUBLISH_RELATIVE_URL_KEYWORD = 'relative_url'

@@ -8,16 +8,19 @@ MSIINFO_PATH = '/usr/bin/msiinfo'
 if not os.path.exists(MSIINFO_PATH):
     raise RuntimeError("msiinfo is not available")
 
+
 class Error(Exception):
     pass
+
 
 class InvalidPackageError(Error):
     pass
 
+
 class Package(object):
     _ATTRS = set(['UpgradeCode', 'ProductCode', 'Manufacturer'])
-    UNIT_KEY_NAMES = set(['ProductName', 'ProductVersion',
-        'checksumtype', 'checksum'])
+    UNIT_KEY_NAMES = set(ids.UNIT_KEY_MSI)
+
     def __init__(self, unit_key, metadata):
         self.unit_key = unit_key
         self.metadata = metadata
@@ -30,14 +33,14 @@ class Package(object):
         cmd = [MSIINFO_PATH, 'export', filename, 'Property']
         try:
             p = subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
+                                 stderr=subprocess.PIPE)
             stdout, stderr = p.communicate()
         except Exception, e:
             raise Error(str(e))
         if p.returncode != 0:
             raise InvalidPackageError(stderr)
-        headers = ( h.rstrip().partition('\t')
-            for h in stdout.split('\n') )
+        headers = (h.rstrip().partition('\t')
+                   for h in stdout.split('\n'))
         headers = dict((x[0], x[2]) for x in headers if x[1] == '\t')
         unit_key = dict(checksumtype='sha256')
         checksum_type = user_metadata.get('checksumtype', '').lower()
@@ -47,14 +50,9 @@ class Package(object):
             checksum_type = None
         checksum = user_metadata.get('checksum', '').lower()
         if calculate_checksum or not (checksum_type and checksum):
-            m = hashlib.sha256()
-            with file(filename, "rb") as fobj:
-                while 1:
-                    buf = fobj.read(65536)
-                    if not buf:
-                        break
-                    m.update(buf)
-            unit_key.update(checksum=m.hexdigest())
+            fobj = open(filename, "r")
+            unit_key['checksum'] = cls._compute_checksum(fobj)
+            unit_key['checksumtype'] = 'sha256'
         else:
             unit_key.update(checksum=checksum)
         for unit_key_name in cls.UNIT_KEY_NAMES:
@@ -62,20 +60,18 @@ class Package(object):
         metadata = {}
         for attr in cls._ATTRS:
             metadata[attr] = headers.get(attr)
-        metadata['filename'] = "{0}-{1}.msi".format(unit_key['ProductName'],
-                unit_key['ProductVersion'])
-        # For now, not sure how to generate EXE
-        return MSI(unit_key, metadata)
+        metadata['filename'] = cls.filename_from_unit_key(unit_key)
+        return cls(unit_key, metadata)
 
     @property
     def relative_path(self):
-        return os.path.join(self.unit_key['ProductName'],
-                self.unit_key['ProductVersion'], self.unit_key['checksum'],
-                self.metadata['filename'])
+        return os.path.join(
+            self.unit_key['ProductName'], self.unit_key['ProductVersion'],
+            self.unit_key['checksum'], self.metadata['filename'])
 
     def init_unit(self, conduit):
-        self._unit = conduit.init_unit(self.TYPE_ID, self.unit_key,
-                self.metadata, self.relative_path)
+        self._unit = conduit.init_unit(
+            self.TYPE_ID, self.unit_key, self.metadata, self.relative_path)
         return self
 
     def move_unit(self, file_path):
@@ -84,8 +80,25 @@ class Package(object):
     def save_unit(self, conduit):
         conduit.save_unit(self._unit)
 
+    @classmethod
+    def _compute_checksum(cls, fobj):
+        dig = hashlib.sha256()
+        while 1:
+            block = fobj.read(16384)
+            if not block:
+                break
+            dig.update(block)
+        return dig.hexdigest()
+
+    @classmethod
+    def filename_from_unit_key(cls, unit_key):
+        return "{0}-{1}.{2}".format(
+            unit_key['ProductName'], unit_key['ProductVersion'], cls.TYPE_ID)
+
+
 class MSI(Package):
     TYPE_ID = ids.TYPE_ID_MSI
+
 
 class EXE(Package):
     TYPE_ID = ids.TYPE_ID_EXE
