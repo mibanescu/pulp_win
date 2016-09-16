@@ -160,10 +160,10 @@ class PublishMSIStep(UnitPublishStep):
         dest_path = os.path.join(self.get_working_dir(),
                                  os.path.basename(unit.storage_path))
         self._create_symlink(unit.storage_path, dest_path)
-        name = unit.unit_key['ProductName']
+        name = unit.unit_key['name']
         latest = self.units_latest.get(name)
-        if latest is None or self._vercmp(latest.unit_key['ProductVersion'],
-                                          unit.unit_key['ProductVersion']) < 0:
+        if latest is None or self._vercmp(latest.unit_key['version'],
+                                          unit.unit_key['version']) < 0:
             self.units_latest[name] = unit
 
     @classmethod

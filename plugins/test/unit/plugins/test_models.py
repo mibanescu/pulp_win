@@ -16,8 +16,8 @@ class TestModel(unittest.TestCase):
         pkg = models.MSI.from_file(msi_path)
         self.assertTrue(isinstance(pkg, models.MSI))
         self.assertEquals(pkg.unit_key, {
-            'ProductName': 'lorem-ipsum',
-            'ProductVersion': '0.0.1',
+            'name': 'lorem-ipsum',
+            'version': '0.0.1',
             'checksum': '6fab18ef14a41010b1c865a948bbbdb41ce0779a4520acabb936d931410fac07',  # noqa
             'checksumtype': 'sha256',
             })
@@ -30,7 +30,7 @@ class TestModel(unittest.TestCase):
         msi_path = os.path.join(DATA_DIR, "lorem-ipsum-0.0.1.msi")
         pkg = models.MSI.from_file(msi_path, metadata)
         self.assertTrue(isinstance(pkg, models.MSI))
-        self.assertEquals(pkg.unit_key['ProductName'], 'lorem-ipsum')
+        self.assertEquals(pkg.unit_key['name'], 'lorem-ipsum')
 
     def test_from_file_no_file(self):
         self.assertRaises(models.InvalidPackageError,

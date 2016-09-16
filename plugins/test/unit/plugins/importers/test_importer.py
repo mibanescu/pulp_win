@@ -48,7 +48,7 @@ class TestWinImporter(testbase.TestCase):
         return file_path, checksum
 
     def test_move_unit(self):
-        unit_key = dict(ProductName="aaa", ProductVersion="1", checksum="bob")
+        unit_key = dict(name="aaa", version="1", checksum="bob")
         file_path, _ = self.new_file(contents=unit_key)
         metadata = dict(filename=file_path)
         unit = models.MSI(unit_key, metadata)
@@ -154,8 +154,8 @@ class TestWinImporter(testbase.TestCase):
         def init_unit_side_effect(self, conduit):
             class Unit(object):
                 def __init__(self, *args, **kwargs):
-                    self.unit_key = dict(ProductName='a',
-                                         Version='1')
+                    self.unit_key = dict(name='a',
+                                         version='1')
                     self.metadata = dict(filename='a-1.msi')
                     self.storage_path = storage_path
             self._unit = Unit()
@@ -174,7 +174,7 @@ class TestWinImporter(testbase.TestCase):
                          {'success_flag': True,
                           'details': dict(
                               unit=dict(
-                                  unit_key=dict(ProductName='a', Version='1'),
+                                  unit_key=dict(name='a', version='1'),
                                   metadata=dict(filename='a-1.msi'))),
                           'summary': ''})
         from_file.assert_called_once_with(msi_file, metadata)

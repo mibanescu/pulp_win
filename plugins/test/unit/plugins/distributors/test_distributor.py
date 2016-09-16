@@ -158,21 +158,21 @@ class TestPublishRepo(BaseTest):
     def _units(cls, storage_dir):
         units = [
             Unit(ids.TYPE_ID_MSI,
-                 unit_key=dict(ProductName='burgundy',
-                               ProductVersion='0.1938.0',
+                 unit_key=dict(name='burgundy',
+                               version='0.1938.0',
                                checksum='abcde', checksum_type='sha3.14'),
                  metadata={},
                  storage_path=None),
             Unit(ids.TYPE_ID_MSI,
-                 unit_key=dict(ProductName='chablis',
-                               ProductVersion='0.2013.0',
+                 unit_key=dict(name='chablis',
+                               version='0.2013.0',
                                checksum='yz', checksum_type='sha3.14'),
                  metadata={},
                  storage_path=None)
         ]
         for unit in units:
-            filename = "%s-%s.msi" % (unit.unit_key['ProductName'],
-                                      unit.unit_key['ProductVersion'])
+            filename = "%s-%s.msi" % (unit.unit_key['name'],
+                                      unit.unit_key['version'])
             unit.metadata['filename'] = filename
             unit.storage_path = os.path.join(storage_dir, filename)
             file(unit.storage_path, "wb").write(str(uuid.uuid4()))

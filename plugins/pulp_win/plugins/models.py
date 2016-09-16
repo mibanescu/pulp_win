@@ -20,6 +20,7 @@ class InvalidPackageError(Error):
 class Package(object):
     _ATTRS = set(['UpgradeCode', 'ProductCode', 'Manufacturer'])
     UNIT_KEY_NAMES = set(ids.UNIT_KEY_MSI)
+    UNIT_KEY_TO_FIELD_MAP = dict(name='ProductName', version='ProductVersion')
 
     def __init__(self, unit_key, metadata):
         self.unit_key = unit_key
@@ -56,7 +57,9 @@ class Package(object):
         else:
             unit_key.update(checksum=checksum)
         for unit_key_name in cls.UNIT_KEY_NAMES:
-            unit_key.setdefault(unit_key_name, headers.get(unit_key_name))
+            prop_name = cls.UNIT_KEY_TO_FIELD_MAP.get(unit_key_name,
+                                                      unit_key_name)
+            unit_key.setdefault(unit_key_name, headers.get(prop_name))
         metadata = {}
         for attr in cls._ATTRS:
             metadata[attr] = headers.get(attr)
@@ -66,7 +69,7 @@ class Package(object):
     @property
     def relative_path(self):
         return os.path.join(
-            self.unit_key['ProductName'], self.unit_key['ProductVersion'],
+            self.unit_key['name'], self.unit_key['version'],
             self.unit_key['checksum'], self.metadata['filename'])
 
     def init_unit(self, conduit):
@@ -93,7 +96,7 @@ class Package(object):
     @classmethod
     def filename_from_unit_key(cls, unit_key):
         return "{0}-{1}.{2}".format(
-            unit_key['ProductName'], unit_key['ProductVersion'], cls.TYPE_ID)
+            unit_key['name'], unit_key['version'], cls.TYPE_ID)
 
 
 class MSI(Package):
