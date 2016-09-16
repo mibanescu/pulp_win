@@ -12,7 +12,7 @@
 # ---- Pulp (win) --------------------------------------------------------------
 
 Name: pulp-win
-Version: 2.4.0
+Version: 3.0
 Release: 1%{?dist}
 Summary: Support for Windows content in the Pulp platform
 Group: Development/Languages
@@ -107,6 +107,7 @@ Summary: Pulp Win plugins
 Group: Development/Languages
 Requires: python-%{name}-common = %{version}
 Requires: pulp-server = %{pulp_version}
+Requires: pulp-rpm-plugins = %{pulp_version}
 Requires: msitools
 Obsoletes: pulp-win-plugins-server <= 2.4.0
 

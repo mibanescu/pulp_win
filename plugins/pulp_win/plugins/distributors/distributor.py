@@ -24,10 +24,6 @@ def entry_point():
     return WinDistributor, {}
 
 
-class SymlinkError(Exception):
-    pass
-
-
 class WinDistributor(Distributor):
     @classmethod
     def metadata(cls):
@@ -112,15 +108,7 @@ class RepomdStep(PublishStep):
             for unit in units:
                 sio.seek(0)
                 sio.truncate()
-                el = self._to_xml_element("package",
-                                          attrib=dict(type=unit.type_id),
-                                          content=unit.unit_key)
-                path = os.path.basename(unit.storage_path)
-                ElementTree.SubElement(el, "location", attrib=dict(href=path))
-                rd = unit.metadata.get('repomd')
-                if rd is not None:
-                    el.append(self._to_xml_element('ddfContents',
-                                                   content=rd))
+                el = self._package_to_xml(unit)
                 et = ElementTree.ElementTree(el)
                 et.write(sio, encoding="utf-8")
                 repodata = unit.metadata.setdefault('repodata', {})
@@ -131,6 +119,21 @@ class RepomdStep(PublishStep):
             repomd.add_metadata_file_metadata('primary',
                                               primary.metadata_file_path,
                                               primary.checksum)
+
+    @classmethod
+    def _package_to_xml(cls, unit):
+        unit_key = unit.unit_key.copy()
+        checksum_type = unit_key.pop('checksumtype', 'sha256')
+        el = cls._to_xml_element("package",
+                                 attrib=dict(type=unit.type_id),
+                                 content=unit_key)
+        csum_nodes = el.findall('checksum')
+        if csum_nodes:
+            csum_node = csum_nodes[0]
+            csum_node.attrib.update(pkgid="YES", type=checksum_type)
+        path = os.path.basename(unit.storage_path)
+        ElementTree.SubElement(el, "location", attrib=dict(href=path))
+        return el
 
     @classmethod
     def _to_xml_element(cls, tag, attrib=None, content=None):

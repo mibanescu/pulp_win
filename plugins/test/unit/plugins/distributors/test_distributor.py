@@ -247,13 +247,17 @@ class TestPublishRepo(BaseTest):
             cargs
         )
 
-        # checksum should be present, even though it's not a key for ddf
+        processed_units = [x[0][0] for x in cargs]
+        checksum_nodes = [
+            self._xml_path(u.metadata['repodata']['primary'], 'checksum')
+            for u in processed_units]
         self.assertEquals(
-            ['sha256'] * len(cargs),
-            [self._xml_path(x[0][0].metadata['repodata']['primary'],
-                            'checksumtype').text
-             for x in cargs]
-        )
+            [x.unit_key['checksum'] for x in exp_units],
+            [node.text for node in checksum_nodes])
+        self.assertEquals(
+            [dict(pkgid='YES', type='sha256') for x in exp_units],
+            [node.attrib for node in checksum_nodes])
+
         exp_filenames = [os.path.basename(x.storage_path) for x in exp_units]
         self.assertEquals(
             exp_filenames,
