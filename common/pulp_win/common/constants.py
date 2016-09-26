@@ -17,7 +17,7 @@ STATE_SKIPPED = 'SKIPPED'
 
 COMPLETE_STATES = (STATE_COMPLETE, STATE_FAILED, STATE_SKIPPED)
 
-REPO_NOTE_WIN = 'win-repo'
+REPO_NOTE_PKG = 'win-repo'
 
 # Importer configuration key names
 CONFIG_COPY_CHILDREN                = 'copy_children'
@@ -31,6 +31,13 @@ CONFIG_REMOVE_MISSING_UNITS_DEFAULT = False
 CONFIG_SERVE_HTTP      = 'serve_http'
 CONFIG_SERVE_HTTPS     = 'serve_https'
 
+DEFAULT_SERVE_HTTP = False
+DEFAULT_SERVE_HTTPS = True
+
+# Copy operation config
+CONFIG_RECURSIVE = 'recursive'
+DISPLAY_UNITS_THRESHOLD = 100
+
 # Profiler configuration key name
 #CONFIG_APPLICABILITY_REPORT_STYLE = 'report_style'
 #APPLICABILITY_REPORT_STYLE_BY_UNITS = 'by_units'
@@ -39,10 +46,11 @@ CONFIG_SERVE_HTTPS     = 'serve_https'
 PUBLISH_REPO_STEP = 'publish_repo'
 PUBLISH_MODULES_STEP = "publish_modules"
 PUBLISH_MSI_STEP = "publish_msi"
+PUBLISH_MSM_STEP = "publish_msm"
 PUBLISH_REPOMD = "publish_repomd"
 
-PUBLISH_STEPS = (PUBLISH_REPO_STEP, PUBLISH_MODULES_STEP, PUBLISH_MSI_STEP,
-                 PUBLISH_REPOMD)
+PUBLISH_STEPS = (PUBLISH_REPO_STEP, PUBLISH_MODULES_STEP,
+                 PUBLISH_MSI_STEP, PUBLISH_MSM_STEP, PUBLISH_REPOMD)
 
 REPO_NODE_PKG = 'win-repo'
 

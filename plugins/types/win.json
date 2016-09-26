@@ -9,9 +9,9 @@
                 ["name", "version", "filename", "checksum", "checksumtype"]
     },
     {
-        "id" : "exe",
-        "display_name" : "EXE",
-        "description" : "EXE",
+        "id" : "msm",
+        "display_name" : "MSM",
+        "description" : "MSM",
         "unit_key" :
                 ["name", "version", "checksumtype", "checksum"],
         "search_indexes" :

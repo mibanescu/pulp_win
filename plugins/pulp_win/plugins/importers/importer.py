@@ -5,7 +5,7 @@ from pulp.plugins.util import importer_config
 from pulp.server.db.model.criteria import UnitAssociationCriteria
 from gettext import gettext as _
 from pulp_win.common.ids import SUPPORTED_TYPES, TYPE_ID_IMPORTER_WIN, \
-    TYPE_ID_MSI
+    TYPE_ID_MSI, TYPE_ID_MSM
 from pulp_win.plugins import models
 
 _LOG = logging.getLogger(__name__)
@@ -20,6 +20,7 @@ def entry_point():
 class WinImporter(Importer):
     Type_Class_Map = {
         TYPE_ID_MSI: models.MSI,
+        TYPE_ID_MSM: models.MSM,
     }
 
     def __init__(self):
@@ -54,7 +55,7 @@ class WinImporter(Importer):
         model_class = self.Type_Class_Map[type_id]
         try:
             unit = model_class.from_file(file_path, metadata)
-        except ValueError, e:
+        except models.Error as e:
             return self.fail_report(str(e))
 
         unit.init_unit(conduit)

@@ -1,8 +1,8 @@
 import errno
 import io
+import itertools
 import logging
 import os
-import rpm
 import shutil
 
 from gettext import gettext as _
@@ -28,9 +28,9 @@ class WinDistributor(Distributor):
     @classmethod
     def metadata(cls):
         return {
-            'id': 'win_distributor',
+            'id': ids.TYPE_ID_DISTRIBUTOR_WIN,
             'display_name': 'Windows Distributor',
-            'types': ['msi', 'exe'],
+            'types': sorted(ids.SUPPORTED_TYPES)
         }
 
     def validate_config(self, repo, config, config_conduit):
@@ -100,11 +100,13 @@ class RepomdStep(PublishStep):
 
     def process_main(self, unit=None):
         wd = self.get_working_dir()
-        total = len(self.parent.publish_msi.units)
+        total = len(self.parent.publish_msi.units +
+                    self.parent.publish_msm.units)
         checksum_type = 'sha256'
         with PrimaryXMLFileContext(wd, total, checksum_type) as primary:
             sio = io.BytesIO()
-            units = self.parent.publish_msi.units
+            units = itertools.chain(self.parent.publish_msi.units,
+                                    self.parent.publish_msm.units)
             for unit in units:
                 sio.seek(0)
                 sio.truncate()
@@ -147,10 +149,13 @@ class RepomdStep(PublishStep):
         return el
 
 
-class PublishMSIStep(UnitPublishStep):
+class _PublishStep(UnitPublishStep):
+    ID_PUBLISH_STEP = None
+    TYPE_ID = None
+
     def __init__(self, work_dir, **kwargs):
-        super(PublishMSIStep, self).__init__(
-            constants.PUBLISH_MSI_STEP, [ids.TYPE_ID_MSI], **kwargs)
+        super(_PublishStep, self).__init__(
+            self.ID_PUBLISH_STEP, [self.TYPE_ID], **kwargs)
         self.working_dir = work_dir
         self.units = []
         self.units_latest = dict()
@@ -160,15 +165,16 @@ class PublishMSIStep(UnitPublishStep):
         dest_path = os.path.join(self.get_working_dir(),
                                  os.path.basename(unit.storage_path))
         self._create_symlink(unit.storage_path, dest_path)
-        name = unit.unit_key['name']
-        latest = self.units_latest.get(name)
-        if latest is None or self._vercmp(latest.unit_key['version'],
-                                          unit.unit_key['version']) < 0:
-            self.units_latest[name] = unit
 
-    @classmethod
-    def _vercmp(cls, ver1, ver2):
-        return rpm.labelCompare((None, ver1, ''), (None, ver2, ''))
+
+class PublishMSIStep(_PublishStep):
+    ID_PUBLISH_STEP = constants.PUBLISH_MSI_STEP
+    TYPE_ID = ids.TYPE_ID_MSI
+
+
+class PublishMSMStep(_PublishStep):
+    ID_PUBLISH_STEP = constants.PUBLISH_MSM_STEP
+    TYPE_ID = ids.TYPE_ID_MSM
 
 
 class ModulePublisher(PublishStep):
@@ -180,7 +186,9 @@ class ModulePublisher(PublishStep):
         self.description = self.__class__.description
         work_dir = self.get_working_dir()
         self.publish_msi = PublishMSIStep(work_dir)
+        self.publish_msm = PublishMSMStep(work_dir)
         self.add_child(self.publish_msi)
+        self.add_child(self.publish_msm)
         self.add_child(RepomdStep())
 
         if self.non_halting_exceptions is None:

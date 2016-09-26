@@ -27,6 +27,10 @@ class TestEntryPoint(testbase.TestCase):
 
         expected_value = (importer.WinImporter, {})
         self.assertEqual(return_value, expected_value)
+        self.assertEquals({
+            models.MSI.TYPE_ID: models.MSI,
+            models.MSM.TYPE_ID: models.MSM,
+        }, importer.WinImporter.Type_Class_Map)
 
 
 class TestWinImporter(testbase.TestCase):
@@ -126,7 +130,7 @@ class TestWinImporter(testbase.TestCase):
         expected_value = {
             'id': ids.TYPE_ID_IMPORTER_WIN,
             'display_name': _('Windows importer'),
-            'types': [ids.TYPE_ID_EXE, ids.TYPE_ID_MSI], }
+            'types': [ids.TYPE_ID_MSI, ids.TYPE_ID_MSM], }
         self.assertEqual(metadata, expected_value)
 
     @mock.patch('pulp_win.plugins.models.Package.from_file')

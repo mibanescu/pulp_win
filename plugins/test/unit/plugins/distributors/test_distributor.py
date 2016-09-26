@@ -168,7 +168,19 @@ class TestPublishRepo(BaseTest):
                                version='0.2013.0',
                                checksum='yz', checksum_type='sha3.14'),
                  metadata={},
-                 storage_path=None)
+                 storage_path=None),
+            Unit(ids.TYPE_ID_MSM,
+                 unit_key=dict(name='sugar',
+                               version='0.1.0',
+                               checksum='0000s', checksum_type='sha3.14'),
+                 metadata={},
+                 storage_path=None),
+            Unit(ids.TYPE_ID_MSM,
+                 unit_key=dict(name='yeast',
+                               version='0.2.0',
+                               checksum='0000y', checksum_type='sha3.14'),
+                 metadata={},
+                 storage_path=None),
         ]
         for unit in units:
             filename = "%s-%s.msi" % (unit.unit_key['name'],
@@ -188,7 +200,12 @@ class TestPublishRepo(BaseTest):
         os.makedirs(storage_dir)
         units = self._units(storage_dir)
 
-        unit_counts = {ids.TYPE_ID_MSI: len(units)}
+        unit_dict = dict()
+        unit_counts = dict()
+        for type_id in sorted(ids.SUPPORTED_TYPES):
+            _l = unit_dict[type_id] = [u for u in units
+                                       if u.type_id == type_id]
+            unit_counts[type_id] = len(_l)
 
         distributor = self.Module.WinDistributor()
         repo = mock.Mock()
@@ -198,8 +215,10 @@ class TestPublishRepo(BaseTest):
             content_unit_counts=unit_counts,
             id=repo_id)
 
+        def mock_get_units(criteria, as_generator=True):
+            return unit_dict[criteria.type_ids[0]]
         conduit = self._config_conduit()
-        conduit.get_units.return_value = units
+        conduit.get_units.side_effect = mock_get_units
         repo_config = dict(
             http=True, https=False,
             relative_url='level1/' + repo.id,
@@ -217,7 +236,7 @@ class TestPublishRepo(BaseTest):
         self.assertEquals(
             [len(x[0][1][0]['sub_steps'])
              for x in conduit.build_success_report.call_args_list],
-            [2])
+            [3])
         # Make sure symlinks got created
         for unit in units:
             published_path = os.path.join(
@@ -227,7 +246,7 @@ class TestPublishRepo(BaseTest):
             self.assertEquals(os.readlink(published_path), unit.storage_path)
 
         self.assertEqual(
-            [['msi']],
+            [['msi'], ['msm']],
             [x[0][0]['type_ids']
              for x in conduit.get_units.call_args_list],
         )
@@ -249,13 +268,15 @@ class TestPublishRepo(BaseTest):
 
         processed_units = [x[0][0] for x in cargs]
         checksum_nodes = [
-            self._xml_path(u.metadata['repodata']['primary'], 'checksum')
+            self._xml_path(u.metadata['repodata']['primary'],
+                           'checksum')
             for u in processed_units]
         self.assertEquals(
             [x.unit_key['checksum'] for x in exp_units],
             [node.text for node in checksum_nodes])
         self.assertEquals(
-            [dict(pkgid='YES', type='sha256') for x in exp_units],
+            [dict(pkgid='YES', type='sha256')
+             for x in exp_units],
             [node.attrib for node in checksum_nodes])
 
         exp_filenames = [os.path.basename(x.storage_path) for x in exp_units]
