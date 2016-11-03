@@ -5,7 +5,7 @@
 %define pulp_server 1
 
 # define required pulp platform version.
-%define pulp_version 2.7.1
+%define pulp_version 2.10.1
 
 %define inst_prefix pulp_win
 
@@ -105,9 +105,9 @@ A collection of modules shared among all Win components.
 %package plugins
 Summary: Pulp Win plugins
 Group: Development/Languages
-Requires: python-%{name}-common = %{version}
-Requires: pulp-server = %{pulp_version}
-Requires: pulp-rpm-plugins = %{pulp_version}
+Requires: python-%{name}-common = %{version}-%{release}
+Requires: pulp-server
+Requires: pulp-rpm-plugins
 Requires: msitools
 Obsoletes: pulp-win-plugins-server <= 2.4.0
 
@@ -132,7 +132,7 @@ to provide Win specific support.
 %package admin-extensions
 Summary: The Win admin client extensions
 Group: Development/Languages
-Requires: pulp-admin-client = %{pulp_version}
+Requires: pulp-admin-client
 Requires: python-%{name}-common = %{version}-%{release}
 
 %description admin-extensions

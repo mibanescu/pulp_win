@@ -1,21 +1,22 @@
 import errno
-import io
 import itertools
 import logging
 import os
 import shutil
 
 from gettext import gettext as _
-from xml.etree import ElementTree
+from pulp.plugins.util import misc
 from pulp.plugins.util.publish_step import AtomicDirectoryPublishStep
-from pulp.plugins.util.publish_step import PublishStep, UnitPublishStep
+from pulp.plugins.util.publish_step import PluginStep, UnitModelPluginStep
 from pulp.plugins.distributor import Distributor
 from pulp_win.common import ids, constants
+from pulp_win.plugins.db import models
 from . import configuration
 
 # Unfortunately, we need to reach into pulp_rpm in order to generate repomd
 from pulp_rpm.plugins.distributors.yum.metadata.repomd import RepomdXMLFileContext  # noqa
 from pulp_rpm.plugins.distributors.yum.metadata.primary import PrimaryXMLFileContext  # noqa
+
 
 _LOG = logging.getLogger(__name__)
 
@@ -36,11 +37,11 @@ class WinDistributor(Distributor):
     def validate_config(self, repo, config, config_conduit):
         return configuration.validate_config(repo, config, config_conduit)
 
-    def publish_repo(self, repo, publish_conduit, config):
+    def publish_repo(self, repo, conduit, config):
         publisher = Publisher(
-            repo=repo, publish_conduit=publish_conduit,
-            config=config, distributor_type=ids.TYPE_ID_DISTRIBUTOR_WIN)
-        return publisher.publish()
+            repo=repo, conduit=conduit,
+            config=config, plugin_type=ids.TYPE_ID_DISTRIBUTOR_WIN)
+        return publisher.process_lifecycle()
 
     def distributor_removed(self, repo, config):
         repo_dir = configuration.get_master_publish_dir(
@@ -63,19 +64,21 @@ class WinDistributor(Distributor):
                     raise
 
 
-class Publisher(PublishStep):
+class Publisher(PluginStep):
     description = _("Publishing windows artifacts")
 
-    def __init__(self, repo, publish_conduit, config, distributor_type):
+    def __init__(self, repo, conduit, config,
+                 plugin_type, **kwargs):
         super(Publisher, self).__init__(step_type=constants.PUBLISH_REPO_STEP,
                                         repo=repo,
-                                        publish_conduit=publish_conduit,
+                                        conduit=conduit,
                                         config=config,
-                                        distributor_type=distributor_type)
-        self.add_child(ModulePublisher(publish_conduit=publish_conduit,
-                                       config=config, repo=repo))
+                                        plugin_type=plugin_type)
+
+        self.add_child(ModulePublisher(conduit=conduit,
+                       config=config, repo=repo))
         master_publish_dir = configuration.get_master_publish_dir(
-            repo, distributor_type)
+            repo, plugin_type)
         target_directories = []
         if config.get(constants.PUBLISH_HTTP_KEYWORD):
             target_directories.append(
@@ -94,7 +97,7 @@ class Publisher(PublishStep):
         self.description = self.__class__.description
 
 
-class RepomdStep(PublishStep):
+class RepomdStep(PluginStep):
     def __init__(self):
         super(RepomdStep, self).__init__(constants.PUBLISH_REPOMD)
 
@@ -104,17 +107,9 @@ class RepomdStep(PublishStep):
                     self.parent.publish_msm.units)
         checksum_type = 'sha256'
         with PrimaryXMLFileContext(wd, total, checksum_type) as primary:
-            sio = io.BytesIO()
             units = itertools.chain(self.parent.publish_msi.units,
                                     self.parent.publish_msm.units)
             for unit in units:
-                sio.seek(0)
-                sio.truncate()
-                el = self._package_to_xml(unit)
-                et = ElementTree.ElementTree(el)
-                et.write(sio, encoding="utf-8")
-                repodata = unit.metadata.setdefault('repodata', {})
-                repodata['primary'] = sio.getvalue()
                 primary.add_unit_metadata(unit)
 
         with RepomdXMLFileContext(wd, checksum_type) as repomd:
@@ -122,62 +117,36 @@ class RepomdStep(PublishStep):
                                               primary.metadata_file_path,
                                               primary.checksum)
 
-    @classmethod
-    def _package_to_xml(cls, unit):
-        unit_key = unit.unit_key.copy()
-        checksum_type = unit_key.pop('checksumtype', 'sha256')
-        el = cls._to_xml_element("package",
-                                 attrib=dict(type=unit.type_id),
-                                 content=unit_key)
-        csum_nodes = el.findall('checksum')
-        if csum_nodes:
-            csum_node = csum_nodes[0]
-            csum_node.attrib.update(pkgid="YES", type=checksum_type)
-        path = os.path.basename(unit.storage_path)
-        ElementTree.SubElement(el, "location", attrib=dict(href=path))
-        return el
 
-    @classmethod
-    def _to_xml_element(cls, tag, attrib=None, content=None):
-        if attrib is None:
-            attrib = dict()
-        if content is None:
-            content = dict()
-        el = ElementTree.Element(tag, attrib=attrib)
-        for k, v in sorted(content.items()):
-            ElementTree.SubElement(el, k).text = v
-        return el
-
-
-class _PublishStep(UnitPublishStep):
+class _PublishStep(UnitModelPluginStep):
     ID_PUBLISH_STEP = None
-    TYPE_ID = None
+    Model = None
 
     def __init__(self, work_dir, **kwargs):
         super(_PublishStep, self).__init__(
-            self.ID_PUBLISH_STEP, [self.TYPE_ID], **kwargs)
+            self.ID_PUBLISH_STEP, [self.Model], **kwargs)
         self.working_dir = work_dir
         self.units = []
         self.units_latest = dict()
 
-    def process_unit(self, unit):
+    def process_main(self, item=None):
+        unit = item
         self.units.append(unit)
-        dest_path = os.path.join(self.get_working_dir(),
-                                 os.path.basename(unit.storage_path))
-        self._create_symlink(unit.storage_path, dest_path)
+        dest_path = os.path.join(self.get_working_dir(), unit.filename)
+        misc.create_symlink(unit.storage_path, dest_path)
 
 
 class PublishMSIStep(_PublishStep):
     ID_PUBLISH_STEP = constants.PUBLISH_MSI_STEP
-    TYPE_ID = ids.TYPE_ID_MSI
+    Model = models.MSI
 
 
 class PublishMSMStep(_PublishStep):
     ID_PUBLISH_STEP = constants.PUBLISH_MSM_STEP
-    TYPE_ID = ids.TYPE_ID_MSM
+    Model = models.MSM
 
 
-class ModulePublisher(PublishStep):
+class ModulePublisher(PluginStep):
     description = _("Publishing modules")
 
     def __init__(self, **kwargs):
@@ -195,4 +164,4 @@ class ModulePublisher(PublishStep):
             self.non_halting_exceptions = []
 
     def _get_total(self):
-        return len(self.publish_msi.units)
+        return len(self.publish_msi.units) + len(self.publish_msm.units)

@@ -7,81 +7,18 @@ import hashlib
 from xml.etree import ElementTree
 
 import mock
-from pulp.plugins.model import Unit
 from .... import testbase
 
+from pulp.plugins.util.manifest_writer import get_sha256_checksum
+
 from pulp_win.common import ids
-
-
-class Attributer(object):
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
-
-
-class ModuleFinder(object):
-    _known = dict(
-        nectar=dict(
-            config=dict(DownloaderConfig=mock.MagicMock()),
-            downloaders=dict(
-                local=dict(LocalFileDownloader=mock.MagicMock()),
-                threaded=dict(HTTPThreadedDownloader=mock.MagicMock()),
-            ),
-            listener=Attributer(DownloadEventListener=object),
-        ),
-        pulp_rpm=dict(
-            plugins=dict(
-                distributors=dict(
-                    yum=dict(
-                        metadata=dict(
-                            repomd=dict(RepomdXMLFileContext=mock.MagicMock()),
-                            primary=dict(PrimaryXMLFileContext=mock.MagicMock()),  # noqa
-                        ),
-                    )
-                )
-            )
-        ),
-    )
-
-    def __init__(self, name=None):
-        self.name = name
-
-    def find_module(self, fullname, path=None):
-        comps = fullname.split('.')
-        fmod = self._known
-        for comp in comps:
-            fmod = fmod.get(comp)
-            if fmod is None:
-                return None
-        return self
-
-    def load_module(self, fullname):
-        fn = []
-        if self.name is not None:
-            fn.append(self.name)
-        fn.append(fullname)
-        return self.__class__('.'.join(fn))
-
-    def __getattr__(self, name):
-        if name == '__path__':
-            return "FAKE"
-        if self.name:
-            comps = self.name.split('.')
-        else:
-            comps = []
-        comps.append(name)
-        fmod = self._known
-        for comp in comps:
-            fmod = fmod.get(comp)
-            if fmod is None:
-                raise AttributeError(comp)
-        return fmod
+from pulp_win.plugins.db import models
 
 
 class BaseTest(testbase.TestCase):
     def setUp(self):
         super(BaseTest, self).setUp()
         self._meta_path = sys.meta_path
-        sys.meta_path = [ModuleFinder()] + sys.meta_path
         from pulp_win.plugins.distributors import distributor
         self.Module = distributor
         self.Configuration = distributor.configuration
@@ -94,13 +31,6 @@ class BaseTest(testbase.TestCase):
             HTTPS_PUBLISH_DIR=os.path.join(root, "https", "repos"),
         )
         self._confmock.start()
-
-        comps = 'pulp_rpm.plugins.distributors.yum.metadata'.split('.')
-        mdmod = reduce(lambda d, k: d[k], comps, ModuleFinder._known)
-        self.repomdxml = mdmod['repomd']['RepomdXMLFileContext']
-        self.primaryxml = mdmod['primary']['PrimaryXMLFileContext']
-        self.repomdxml.reset_mock()
-        self.primaryxml.reset_mock()
 
     def tearDown(self):
         self._confmock.stop()
@@ -153,47 +83,35 @@ class TestConfiguration(BaseTest):
             (True, None))
 
 
-class TestPublishRepo(BaseTest):
+class PublishRepoMixIn(object):
     @classmethod
     def _units(cls, storage_dir):
         units = [
-            Unit(ids.TYPE_ID_MSI,
-                 unit_key=dict(name='burgundy',
-                               version='0.1938.0',
-                               checksum='abcde', checksum_type='sha3.14'),
-                 metadata={},
-                 storage_path=None),
-            Unit(ids.TYPE_ID_MSI,
-                 unit_key=dict(name='chablis',
-                               version='0.2013.0',
-                               checksum='yz', checksum_type='sha3.14'),
-                 metadata={},
-                 storage_path=None),
-            Unit(ids.TYPE_ID_MSM,
-                 unit_key=dict(name='sugar',
-                               version='0.1.0',
-                               checksum='0000s', checksum_type='sha3.14'),
-                 metadata={},
-                 storage_path=None),
-            Unit(ids.TYPE_ID_MSM,
-                 unit_key=dict(name='yeast',
-                               version='0.2.0',
-                               checksum='0000y', checksum_type='sha3.14'),
-                 metadata={},
-                 storage_path=None),
-        ]
+            cls.Model(
+                _storage_path=None,
+                **x)
+            for x in cls.Sample_Units]
         for unit in units:
-            filename = "%s-%s.msi" % (unit.unit_key['name'],
-                                      unit.unit_key['version'])
-            unit.metadata['filename'] = filename
-            unit.storage_path = os.path.join(storage_dir, filename)
-            file(unit.storage_path, "wb").write(str(uuid.uuid4()))
-            unit.unit_key['checksumtype'] = 'sha256'
-            unit.unit_key['checksum'] = hashlib.sha256(
-                open(unit.storage_path, "rb").read()).hexdigest()
+            unit.filename = unit.filename_from_unit_key(unit.unit_key)
+            _p = unit._storage_path = os.path.join(
+                storage_dir, unit.filename)
+            file(_p, "wb").write(str(uuid.uuid4()))
+            unit.checksumtype = 'sha256'
+            unit.checksum = hashlib.sha256(
+                open(_p, "rb").read()).hexdigest()
         return units
 
-    def test_publish_repo(self):
+    @mock.patch("pulp_win.plugins.distributors.distributor.RepomdXMLFileContext")  # noqa
+    @mock.patch("pulp_win.plugins.distributors.distributor.PrimaryXMLFileContext")  # noqa
+    @mock.patch("pulp.server.managers.repo._common.task.current")
+    @mock.patch('pulp.plugins.util.publish_step.repo_controller')
+    def test_publish_repo(self, _repo_controller,
+                          _task_current, PrimaryXMLFileContext,
+                          RepomdXMLFileContext):
+        task_id = _task_current.request.id = 'aabb'
+        worker_name = "worker01"
+        _task_current.request.configure_mock(hostname=worker_name)
+        os.makedirs(os.path.join(self.pulp_working_dir, worker_name))
         # Set up some files
         storage_dir = os.path.join(self.work_dir, 'storage_dir')
         publish_dir = os.path.join(self.work_dir, 'publish_dir')
@@ -215,10 +133,14 @@ class TestPublishRepo(BaseTest):
             content_unit_counts=unit_counts,
             id=repo_id)
 
-        def mock_get_units(criteria, as_generator=True):
-            return unit_dict[criteria.type_ids[0]]
+        def mock_get_units(repo_id, model_class, *args, **kwargs):
+            units = unit_dict[model_class.TYPE_ID]
+            query = mock.MagicMock()
+            query.count.return_value = len(units)
+            query.__iter__.return_value = iter(units)
+            return [query]
+        _repo_controller.get_unit_model_querysets.side_effect = mock_get_units
         conduit = self._config_conduit()
-        conduit.get_units.side_effect = mock_get_units
         repo_config = dict(
             http=True, https=False,
             relative_url='level1/' + repo.id,
@@ -242,25 +164,27 @@ class TestPublishRepo(BaseTest):
             published_path = os.path.join(
                 repo_config['http_publish_dir'],
                 repo_config['relative_url'],
-                unit.metadata['filename'])
+                unit.filename)
             self.assertEquals(os.readlink(published_path), unit.storage_path)
 
-        self.assertEqual(
-            [['msi'], ['msm']],
-            [x[0][0]['type_ids']
-             for x in conduit.get_units.call_args_list],
-        )
+        exp = [
+            mock.call(repo.id, models.MSI, None),
+            mock.call(repo.id, models.MSM, None),
+        ]
+        self.assertEquals(
+            exp,
+            _repo_controller.get_unit_model_querysets.call_args_list)
 
         publish_dir = os.path.join(repo_config['http_publish_dir'],
                                    repo_config['relative_url'])
 
         # Make sure we've invoked the repomd publisher
-        self.repomdxml.assert_called_once_with(repo.working_dir, 'sha256')
+        wdir = os.path.join(self.pulp_working_dir, worker_name, task_id)
+        RepomdXMLFileContext.assert_called_once_with(wdir, 'sha256')
         exp_units = units
         count = len(exp_units)
-        self.primaryxml.assert_called_once_with(repo.working_dir, count,
-                                                'sha256')
-        cargs = self.primaryxml.return_value.__enter__.return_value. add_unit_metadata.call_args_list  # noqa
+        PrimaryXMLFileContext.assert_called_once_with(wdir, count, 'sha256')
+        cargs = PrimaryXMLFileContext.return_value.__enter__.return_value.add_unit_metadata.call_args_list  # noqa
         self.assertEquals(
             [mock.call(u) for u in exp_units],
             cargs
@@ -268,22 +192,41 @@ class TestPublishRepo(BaseTest):
 
         processed_units = [x[0][0] for x in cargs]
         checksum_nodes = [
-            self._xml_path(u.metadata['repodata']['primary'],
+            self._xml_path(u.render_primary(None),
                            'checksum')
             for u in processed_units]
         self.assertEquals(
-            [x.unit_key['checksum'] for x in exp_units],
+            [x.checksum for x in exp_units],
             [node.text for node in checksum_nodes])
         self.assertEquals(
             [dict(pkgid='YES', type='sha256')
              for x in exp_units],
             [node.attrib for node in checksum_nodes])
-
-        exp_filenames = [os.path.basename(x.storage_path) for x in exp_units]
+        self.assertEquals(
+            ['sha256'] * len(cargs),
+            [self._xml_path(x[0][0].render_primary(None),
+                            'checksum').attrib['type']
+             for x in cargs]
+        )
+        exp_filenames = [x.filename for x in exp_units]
         self.assertEquals(
             exp_filenames,
-            [self._xml_path(x[0][0].metadata['repodata']['primary'],
+            [self._xml_path(x[0][0].render_primary(None),
                             'location').get('href')
+             for x in cargs]
+        )
+        self.assertEquals(
+            [str(x.size) for x in exp_units],
+            [self._xml_path(x[0][0].render_primary(None),
+                            'size').get('package')
+             for x in cargs]
+        )
+        self.assertEquals(
+            [get_sha256_checksum(
+                os.path.join(publish_dir, x))
+             for x in exp_filenames],
+            [self._xml_path(x[0][0].render_primary(None),
+                            'checksum').text
              for x in cargs]
         )
 
@@ -301,4 +244,22 @@ class TestPublishRepo(BaseTest):
         el = ElementTree.fromstring(strxml)
         for p in paths:
             el = el.find(p)
-            return el
+        return el
+
+class TestPublishRepoMSI(PublishRepoMixIn, BaseTest):
+    Model = models.MSI
+    Sample_Units = [
+        dict(name='burgundy', version='0.1938.0',
+             checksum='abcde', checksumtype='sha3.14'),
+        dict(name='chablis', version='0.2013.0',
+             checksum='yz', checksumtype='sha3.14'),
+        ]
+
+class TestPublishRepoMSM(PublishRepoMixIn, BaseTest):
+    Model = models.MSM
+    Sample_Units = [
+        dict(name='sugar', version='0.1.0',
+             checksum='0000s', checksumtype='sha3.14'),
+        dict(name='yeast', version='0.2.0',
+             checksum='0000y', checksumtype='sha3.14'),
+        ]

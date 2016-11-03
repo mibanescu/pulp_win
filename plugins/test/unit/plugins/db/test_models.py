@@ -2,16 +2,19 @@
 Contains tests for pulp_win.plugins.importers.importer.
 """
 
-import os
-import unittest
-from pulp_win.plugins import models
+from __future__ import unicode_literals
+
 import mock
+import os
+# Important to import testbase, since it mocks the server's config import snafu
+from .... import testbase
+from pulp_win.plugins.db import models
 
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__),
-                           '../../data'))
+                           '../../../data'))
 
 
-class TestModel(unittest.TestCase):
+class TestModel(testbase.TestCase):
     def test_from_file_no_metadata(self):
         msi_path = os.path.join(DATA_DIR, "lorem-ipsum-0.0.1.msi")
         pkg = models.MSI.from_file(msi_path)
@@ -22,8 +25,6 @@ class TestModel(unittest.TestCase):
             'checksum': '6fab18ef14a41010b1c865a948bbbdb41ce0779a4520acabb936d931410fac07',  # noqa
             'checksumtype': 'sha256',
             })
-        self.assertEquals(pkg.relative_path,
-                'lorem-ipsum/0.0.1/6fab18ef14a41010b1c865a948bbbdb41ce0779a4520acabb936d931410fac07/lorem-ipsum-0.0.1.msi')  # noqa
 
     def test_from_file_different_checksumtype(self):
         metadata = dict(checksumtype='sha1',
@@ -34,12 +35,15 @@ class TestModel(unittest.TestCase):
         self.assertEquals(pkg.unit_key['name'], 'lorem-ipsum')
 
     def test_from_file_no_file(self):
-        self.assertRaises(models.InvalidPackageError,
-                          models.MSI.from_file, '/missing-file')
+        with self.assertRaises(ValueError) as cm:
+            models.MSI.from_file('/missing-file')
+        self.assertEquals(
+            "[Errno 2] No such file or directory: u'/missing-file'",
+            str(cm.exception))
 
     def test_from_file_bad_msi(self):
-        self.assertRaises(models.InvalidPackageError,
-                          models.MSI.from_file, __file__)
+        with self.assertRaises(ValueError):
+            models.MSI.from_file(__file__)
 
     def test_from_file_bad_msm__msi(self):
         metadata = dict(checksumtype='sha1',
@@ -60,7 +64,7 @@ class TestModel(unittest.TestCase):
     def _make_msi_table(cls, *tables):
         return '\n'.join(tables)
 
-    @mock.patch("pulp_win.plugins.models.subprocess.Popen")
+    @mock.patch("pulp_win.plugins.db.models.subprocess.Popen")
     def test_from_file_msi(self, _Popen):
         msm_md_path = os.path.join(DATA_DIR, "msm-msiinfo-export.out")
         msm_md = open(msm_md_path).read()
@@ -80,7 +84,8 @@ class TestModel(unittest.TestCase):
         ]
         metadata = dict(checksumtype='sha256',
                         checksum='doesntmatter')
-        pkg = models.MSI.from_file("foo", metadata)
+        msi_path = os.path.join(DATA_DIR, "lorem-ipsum-0.0.1.msi")
+        pkg = models.MSI.from_file(msi_path, metadata)
         self.assertEquals("lorem-ipsum",
                           pkg.unit_key['name'])
         self.assertEquals("0.0.1",
@@ -90,9 +95,9 @@ class TestModel(unittest.TestCase):
                 dict(guid='8E012345_0123_4567_0123_0123456789AB',
                      version='1.2.3.4', name='foobar'),
             ],
-            pkg.metadata['ModuleSignature'])
+            pkg.ModuleSignature)
 
-    @mock.patch("pulp_win.plugins.models.subprocess.Popen")
+    @mock.patch("pulp_win.plugins.db.models.subprocess.Popen")
     def test_from_file_msi_no_module_signature(self, _Popen):
         msm_md_path = os.path.join(DATA_DIR, "msm-msiinfo-export.out")
         msm_md = open(msm_md_path).read()
@@ -112,16 +117,17 @@ class TestModel(unittest.TestCase):
         ]
         metadata = dict(checksumtype='sha256',
                         checksum='doesntmatter')
-        pkg = models.MSI.from_file("foo", metadata)
+        msi_path = os.path.join(DATA_DIR, "lorem-ipsum-0.0.1.msi")
+        pkg = models.MSI.from_file(msi_path, metadata)
         self.assertEquals("lorem-ipsum",
                           pkg.unit_key['name'])
         self.assertEquals("0.0.1",
                           pkg.unit_key['version'])
         self.assertEquals(
             [],
-            pkg.metadata['ModuleSignature'])
+            pkg.ModuleSignature)
 
-    @mock.patch("pulp_win.plugins.models.subprocess.Popen")
+    @mock.patch("pulp_win.plugins.db.models.subprocess.Popen")
     def test_from_file_msm(self, _Popen):
         msm_md_path = os.path.join(DATA_DIR, "msm-msiinfo-export.out")
         msm_md = open(msm_md_path).read()
@@ -133,10 +139,11 @@ class TestModel(unittest.TestCase):
         ]
         metadata = dict(checksumtype='sha256',
                         checksum='doesntmatter')
-        pkg = models.MSM.from_file("foo", metadata)
+        msi_path = os.path.join(DATA_DIR, "lorem-ipsum-0.0.1.msi")
+        pkg = models.MSM.from_file(msi_path, metadata)
         self.assertEquals("foobar",
                           pkg.unit_key['name'])
         self.assertEquals("1.2.3.4",
                           pkg.unit_key['version'])
         self.assertEquals("8E012345_0123_4567_0123_0123456789AB",
-                          pkg.metadata['guid'])
+                          pkg.guid)

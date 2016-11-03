@@ -1,12 +1,13 @@
 import logging
 from pulp.common import config as config_utils
+from pulp.plugins.loader import api as plugin_api
 from pulp.plugins.importer import Importer
 from pulp.plugins.util import importer_config
-from pulp.server.db.model.criteria import UnitAssociationCriteria
+from pulp.server.db import model as platform_models
 from gettext import gettext as _
-from pulp_win.common.ids import SUPPORTED_TYPES, TYPE_ID_IMPORTER_WIN, \
-    TYPE_ID_MSI, TYPE_ID_MSM
-from pulp_win.plugins import models
+from pulp_win.common.ids import SUPPORTED_TYPES, TYPE_ID_IMPORTER_WIN
+from pulp_win.plugins.db import models
+from pulp_win.plugins.importers import sync
 
 _LOG = logging.getLogger(__name__)
 # The leading '/etc/pulp/' will be added by the read_json_config method.
@@ -18,10 +19,7 @@ def entry_point():
 
 
 class WinImporter(Importer):
-    Type_Class_Map = {
-        TYPE_ID_MSI: models.MSI,
-        TYPE_ID_MSM: models.MSM,
-    }
+    Type_Class_Map = sync.RepoSync.Type_Class_Map
 
     def __init__(self):
         super(WinImporter, self).__init__()
@@ -44,40 +42,52 @@ class WinImporter(Importer):
             msg = _('Configuration errors:\n')
             for failure_message in e.failure_messages:
                 msg += failure_message + '\n'
-        msg = msg.rstrip()  # remove the trailing \n
-        return False, msg
+            msg = msg.rstrip()  # remove the trailing \n
+            return False, msg
 
-    def upload_unit(self, repo, type_id, unit_key, metadata,
+    def upload_unit(self, transfer_repo, type_id, unit_key, metadata,
                     file_path, conduit, config):
         if type_id not in SUPPORTED_TYPES:
             return self.fail_report(
                 "Unsupported unit type {0}".format(type_id))
-        model_class = self.Type_Class_Map[type_id]
+        model_class = plugin_api.get_unit_model_by_id(type_id)
+        repo = transfer_repo.repo_obj
+        conduit.repo = repo
+        metadata = metadata or {}
+
+        unit_data = {}
+        unit_data.update(metadata or {})
+        unit_data.update(unit_key or {})
+
         try:
-            unit = model_class.from_file(file_path, metadata)
+            unit = model_class.from_file(file_path, unit_data)
         except models.Error as e:
             return self.fail_report(str(e))
 
-        unit.init_unit(conduit)
-        unit.move_unit(file_path)
-        unit.save_unit(conduit)
+        unit = unit.save_and_associate(file_path, repo)
         return dict(success_flag=True, summary="",
                     details=dict(
-                        unit=dict(unit_key=unit._unit.unit_key,
-                                  metadata=unit._unit.metadata)))
+                        unit=dict(unit_key=unit.unit_key,
+                                  metadata=unit.all_properties)))
 
-    def import_units(self, source_repo, dest_repo, import_conduit,
-                     config, units=None):
+    def import_units(self, source_transfer_repo, dest_transfer_repo,
+                     import_conduit, config, units=None):
+        source_repo = platform_models.Repository.objects.get(
+            repo_id=source_transfer_repo.id)
+        dest_repo = platform_models.Repository.objects.get(
+            repo_id=dest_transfer_repo.id)
+
         if not units:
             # If no units are passed in, assume we will use all units from
             # source repo
-            criteria = UnitAssociationCriteria(
-                type_ids=sorted(SUPPORTED_TYPES))
-            units = import_conduit.get_source_units(criteria=criteria)
+            units = models.repo_controller.find_repo_content_units(
+                source_repo, yield_content_unit=True)
+
+        units = sorted(set(units))
         _LOG.info("Importing %s units from %s to %s" %
                   (len(units), source_repo.id, dest_repo.id))
         for u in units:
-            import_conduit.associate_unit(u)
+            u.associate(dest_repo)
         _LOG.debug("%s units from %s have been associated to %s" %
                    (len(units), source_repo.id, dest_repo.id))
         return units
@@ -88,3 +98,41 @@ class WinImporter(Importer):
         # anything is actually parsing it
         details = {'errors': [message]}
         return {'success_flag': False, 'summary': '', 'details': details}
+
+    def sync_repo(self, transfer_repo, sync_conduit, call_config):
+        """
+        Synchronizes content into the given repository. This call is
+        responsible for adding new content units to Pulp as well as
+        associating them to the given repository.
+
+        While this call may be implemented using multiple threads, its
+        execution from the Pulp server's standpoint should be synchronous.
+        This call should not return until the sync is complete.
+
+        It is not expected that this call be atomic. Should an error occur, it
+        is not the responsibility of the importer to rollback any unit
+        additions or associations that have been made.
+
+        The returned report object is used to communicate the results of the
+        sync back to the user. Care should be taken to i18n the free text "log"
+        attribute in the report if applicable.
+
+        :param transfer_repo: metadata describing the repository
+        :type  transfer_repo: pulp.plugins.model.Repository
+
+        :param sync_conduit: provides access to relevant Pulp functionality
+        :type  sync_conduit: pulp.plugins.conduits.repo_sync.RepoSyncConduit
+
+        :param call_config: plugin configuration
+        :type  call_config: pulp.plugins.config.PluginCallConfiguration
+
+        :return: report of the details of the sync
+        :rtype:  pulp.plugins.model.SyncReport
+        """
+        _LOG.info("Repo sync started.")
+        repo = transfer_repo.repo_obj
+        sync_conduit.repo = repo
+        self._current_sync = sync.RepoSync(repo, sync_conduit, call_config)
+        report = self._current_sync.run()
+        _LOG.info("Repo sync finished.")
+        return report
