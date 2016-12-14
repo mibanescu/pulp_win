@@ -40,6 +40,7 @@ class Package(FileContentUnit):
     relativepath = mongoengine.StringField()
 
     UNIT_KEY_TO_FIELD_MAP = dict()
+    REPOMD_EXTRA_FIELDS = []
 
     def __init__(self, *args, **kwargs):
         super(Package, self).__init__(*args, **kwargs)
@@ -186,9 +187,6 @@ class Package(FileContentUnit):
     def render_primary(self, checksumtype):
         sio = io.BytesIO()
         el = self._package_to_xml(checksumtype)
-        if self.repodata:
-            el.append(self._to_xml_element('ddfContents',
-                                           content=self.repodata))
         et = ElementTree.ElementTree(el)
         et.write(sio, encoding="utf-8")
         return sio.getvalue()
@@ -199,6 +197,10 @@ class Package(FileContentUnit):
                                      self.checksumtype or checksumtype)
         if self.checksum:
             unit_key['checksum'] = self.checksum
+        for field in self.REPOMD_EXTRA_FIELDS:
+            val = getattr(self, field)
+            if val is not None:
+                unit_key[field] = val
         el = self._to_xml_element("package",
                                   attrib=dict(type=self.type_id),
                                   content=unit_key)
@@ -233,6 +235,7 @@ class MSI(Package):
     unit_description = 'MSI'
 
     UNIT_KEY_TO_FIELD_MAP = dict(name='ProductName', version='ProductVersion')
+    REPOMD_EXTRA_FIELDS = ['ProductCode', 'UpgradeCode']
 
     UpgradeCode = mongoengine.StringField()
     ProductCode = mongoengine.StringField()

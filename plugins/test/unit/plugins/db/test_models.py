@@ -147,3 +147,25 @@ class TestModel(testbase.TestCase):
                           pkg.unit_key['version'])
         self.assertEquals("8E012345_0123_4567_0123_0123456789AB",
                           pkg.guid)
+
+    def test_render_primary_msi(self):
+        pkg = models.MSI(name="burgundy", version="1.1.1984.0",
+                         checksumtype="sha256", checksum="chksum",
+                         size=42)
+        pkg.filename = pkg.filename_from_unit_key(pkg.unit_key)
+        xml_str = pkg.render_primary("sha256")
+        self.assertEquals(
+            '<package type="msi"><checksum pkgid="YES" type="sha256">chksum</checksum><name>burgundy</name><version>1.1.1984.0</version><size package="42" /><location href="burgundy-1.1.1984.0.msi" /></package>',  # noqa
+            xml_str)
+
+        # With ProductCode and UpgradeCode
+        pkg = models.MSI(name="burgundy", version="1.1.1984.0",
+                         checksumtype="sha256", checksum="chksum",
+                         size=42,
+                         ProductCode="prodcode",
+                         UpgradeCode="upgrcode")
+        pkg.filename = pkg.filename_from_unit_key(pkg.unit_key)
+        xml_str = pkg.render_primary("sha256")
+        self.assertEquals(
+            '<package type="msi"><ProductCode>prodcode</ProductCode><UpgradeCode>upgrcode</UpgradeCode><checksum pkgid="YES" type="sha256">chksum</checksum><name>burgundy</name><version>1.1.1984.0</version><size package="42" /><location href="burgundy-1.1.1984.0.msi" /></package>',  # noqa
+            xml_str)
