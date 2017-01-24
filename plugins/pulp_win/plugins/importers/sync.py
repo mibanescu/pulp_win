@@ -20,10 +20,6 @@ from pulp_rpm.plugins.importers.yum import sync as yumsync
 _logger = logging.getLogger(__name__)
 
 
-class CancelException(Exception):
-    pass
-
-
 class RepoSync(yumsync.RepoSync):
 
     Type_Class_Map = {

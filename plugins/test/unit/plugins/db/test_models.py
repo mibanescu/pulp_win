@@ -90,12 +90,52 @@ class TestModel(testbase.TestCase):
                           pkg.unit_key['name'])
         self.assertEquals("0.0.1",
                           pkg.unit_key['version'])
+        self.assertEquals("lorem-ipsum",
+                          pkg.ProductName)
         self.assertEquals(
             [
                 dict(guid='8E012345_0123_4567_0123_0123456789AB',
                      version='1.2.3.4', name='foobar'),
             ],
             pkg.ModuleSignature)
+
+    @mock.patch("pulp_win.plugins.db.models.subprocess.Popen")
+    def test_from_file_msi_with_ShortName(self, _Popen):
+        "Almost like test_from_file_msi, but with a ShortName property too"
+        msm_md_path = os.path.join(DATA_DIR, "msm-msiinfo-export.out")
+        msm_md = open(msm_md_path).read()
+        msi_properties = self._make_msi_property(
+            ShortName='lorem-ipsum',
+            ProductName='Lorem ipsum dolor sit amet',
+            ProductVersion='0.0.1',
+            Manufacturer='Cicero Enterprises',
+            ProductCode='{0FE5FDB7-1DA6-44D2-8C17-10510D12D0EE}',
+            UpgradeCode='{12345678-1234-1234-1234-111111111111}',
+        )
+        popen = _Popen.return_value
+        popen.configure_mock(returncode=0)
+        popen.communicate.side_effect = [
+            (self._make_msi_table("ModuleSignature", "Property"), ""),
+            (msi_properties, ""),
+            (msm_md, ""),
+        ]
+        metadata = dict(checksumtype='sha256',
+                        checksum='doesntmatter')
+        msi_path = os.path.join(DATA_DIR, "lorem-ipsum-0.0.1.msi")
+        pkg = models.MSI.from_file(msi_path, metadata)
+        self.assertEquals("lorem-ipsum",
+                          pkg.unit_key['name'])
+        self.assertEquals("0.0.1",
+                          pkg.unit_key['version'])
+        self.assertEquals("Lorem ipsum dolor sit amet",
+                          pkg.ProductName)
+        self.assertEquals(
+            [
+                dict(guid='8E012345_0123_4567_0123_0123456789AB',
+                     version='1.2.3.4', name='foobar'),
+            ],
+            pkg.ModuleSignature)
+
 
     @mock.patch("pulp_win.plugins.db.models.subprocess.Popen")
     def test_from_file_msi_no_module_signature(self, _Popen):

@@ -185,6 +185,7 @@ class TestWinImporter(testbase.TestCase):
         unit_key = dict()
         metadata = dict(
             name="foo", version="1.1",
+            ProductName="foo",
             Manufacturer="ACME Inc.",
             ProductCode="aaa",
             UpgradeCode="bbb",

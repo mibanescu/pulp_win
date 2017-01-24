@@ -76,11 +76,20 @@ class Package(FileContentUnit):
 
         metadata = dict()
         user_md = dict()
+        undef = object()
         for attr, fdef in cls._fields.items():
             if attr == 'id' or attr.startswith('_'):
                 continue
-            prop_name = cls.UNIT_KEY_TO_FIELD_MAP.get(attr, attr)
-            val = unit_md.get(prop_name)
+            prop_names = cls.UNIT_KEY_TO_FIELD_MAP.get(attr, attr)
+            if not isinstance(prop_names, tuple):
+                prop_names = (prop_names, )
+            # Prefer the first value that we find out of the list of prop
+            # names
+            val = None
+            for prop_name in prop_names:
+                val = unit_md.get(prop_name, undef)
+                if val is not undef:
+                    break
             if val is None and fdef.required and attr not in ignored:
                 raise Error('Required field is missing: {}'.format(attr))
             metadata[attr] = val
@@ -234,9 +243,11 @@ class MSI(Package):
     unit_display_name = 'MSI'
     unit_description = 'MSI'
 
-    UNIT_KEY_TO_FIELD_MAP = dict(name='ProductName', version='ProductVersion')
-    REPOMD_EXTRA_FIELDS = ['ProductCode', 'UpgradeCode']
+    UNIT_KEY_TO_FIELD_MAP = dict(name=('ShortName', 'ProductName'),
+                                 version='ProductVersion')
+    REPOMD_EXTRA_FIELDS = ['ProductCode', 'UpgradeCode', 'ProductName']
 
+    ProductName = mongoengine.StringField()
     UpgradeCode = mongoengine.StringField()
     ProductCode = mongoengine.StringField()
     Manufacturer = mongoengine.StringField()

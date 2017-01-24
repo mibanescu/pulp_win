@@ -23,7 +23,7 @@ TYPE_ID_MSI = "msi"
 UNIT_KEY_MSI = (
     "name", "version", "checksum", "checksumtype")
 EXTRA_FIELDS_MSI = set(['UpgradeCode', 'ProductCode', 'Manufacturer',
-                        'ModuleSignature'])
+                        'ModuleSignature', 'ProductName'])
 
 TYPE_ID_MSM = "msm"
 UNIT_KEY_MSM = UNIT_KEY_MSI

@@ -127,7 +127,6 @@ class _PublishStep(UnitModelPluginStep):
             self.ID_PUBLISH_STEP, [self.Model], **kwargs)
         self.working_dir = work_dir
         self.units = []
-        self.units_latest = dict()
 
     def process_main(self, item=None):
         unit = item
