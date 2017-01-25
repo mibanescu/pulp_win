@@ -135,7 +135,8 @@ class TestModel(testbase.TestCase):
                      version='1.2.3.4', name='foobar'),
             ],
             pkg.ModuleSignature)
-
+        # Make sure pulp_user_metadata is not the "undef" value
+        self.assertEquals({}, pkg.pulp_user_metadata)
 
     @mock.patch("pulp_win.plugins.db.models.subprocess.Popen")
     def test_from_file_msi_no_module_signature(self, _Popen):

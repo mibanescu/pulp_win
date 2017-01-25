@@ -85,13 +85,15 @@ class Package(FileContentUnit):
                 prop_names = (prop_names, )
             # Prefer the first value that we find out of the list of prop
             # names
-            val = None
+            val = undef
             for prop_name in prop_names:
                 val = unit_md.get(prop_name, undef)
                 if val is not undef:
                     break
-            if val is None and fdef.required and attr not in ignored:
+            if val is undef and fdef.required and attr not in ignored:
                 raise Error('Required field is missing: {}'.format(attr))
+            if val is undef:
+                continue
             metadata[attr] = val
             if user_metadata and attr in user_metadata:
                 # We won't be mapping fields like ProductVersion from
