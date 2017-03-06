@@ -64,10 +64,17 @@ class TestSync(testbase.TestCase):
 
         _repo_controller.missing_unit_count.return_value = 10
 
-        # An existing unit which should not be re-downloaded
-        _units_controller.find_units.return_value = [
+        existing_units = [
             sync.models.MSI(name="existing", version="1",
-                            checksumtype="sha256", checksum="existing1")
+                            checksumtype="sha256", checksum="existing1"),
+            sync.models.MSI(name="existing", version="1",
+                            checksumtype="sha256", checksum="existing2")
+        ]
+
+        # An existing unit which should not be re-downloaded
+        _units_controller.find_units.side_effect = [
+            [existing_units[0]],
+            [existing_units[1]],
         ]
 
         _xml_content = {
@@ -128,6 +135,52 @@ class TestSync(testbase.TestCase):
             ],
             conduit.build_success_report.call_args_list)
 
+        csm = "8158106e4b75399561fc30c6e486f3a78a3c221a1101dcf2edd0f1547c9bdd3f"  # noqa
+        exp_msi = [
+            sync.models.MSI(name="existing", version="1",
+                            checksumtype="sha256",
+                            checksum="existing1"),
+            sync.models.MSI(name="a", version="1.0",
+                            checksumtype="sha256",
+                            checksum=csm)
+        ]
+        csm2 = "befd9977547415cccf82ac4e7f573f9cec1730dd124499c0a8f03b79ad73bf6a" # noqa
+        exp_msm = [
+            sync.models.MSM(name="existing", version="1",
+                            checksumtype="sha256",
+                            checksum="existing2"),
+            sync.models.MSM(name="a", version="1",
+                            checksumtype="sha256",
+                            checksum=csm2)
+        ]
+
+        # Make sure find_units was called with the expected arguments
+        self.assertEquals(
+            [
+                set(x.unit_key_as_named_tuple for x in exp_msi),
+                set(x.unit_key_as_named_tuple for x in exp_msm),
+            ],
+            [set(x.unit_key_as_named_tuple
+                 for x in cl[0][0])
+             for cl in _units_controller.find_units.call_args_list])
+
+        # Make sure existing units are associated with their ID
+        self.assertEquals(
+            [
+                mock.call(conduit.repo, existing_units[0]),
+                # The second call is for DDF, even though we return a SAD
+                mock.call(conduit.repo, existing_units[1]),
+            ],
+            _repo_controller.associate_single_unit.call_args_list)
+
+        # Don't rely on unit equality - ensure we're really using the same id
+        # This is unnecessary because the ID is checked first, but just to be
+        # sure.
+        self.assertEquals(
+            [x.id for x in existing_units],
+            [x[0][1].id
+             for x in _repo_controller.associate_single_unit.call_args_list])
+
 
 REPOMD_XML = """\
 <?xml version="1.0" encoding="UTF-8"?>
@@ -169,5 +222,12 @@ REPODATA_PRIMARY_XML = """\
     <size package="123"/>
     <location href="a-1.msm"/>
   </package>
+  <package type="msm">
+    <checksum pkgid="YES" type="sha256">existing2</checksum>
+    <name>existing</name>
+    <version>1</version>
+    <size package="123"/>
+    <location href="existing-2.msm"/>
+  </package>
 </metadata>
-"""
+""" # noqa

@@ -132,24 +132,20 @@ class RepoSync(yumsync.RepoSync):
             sep_units = self._separate_units_by_type(package_info_generator)
         to_download = dict()
         for model_class, units in sorted(sep_units.items()):
-            # Because models don't implement an __eq__, we can't simply throw
-            # them in a set (even though they do implement __hash__)
-            k2u = dict((u.unit_key_as_named_tuple, u)
-                       for u in units)
+            upstream_unit_keys = set(u.unit_key_as_named_tuple
+                                     for u in units)
             # Units from the database
-            unit_generator = [model_class(**unit.unit_key)
-                              for unit in sorted(units)]
-            unit_generator = units_controller.find_units(unit_generator)
-            upstream_unit_keys = set(k2u)
+            unit_generator = units_controller.find_units(units)
+            available_units = list(unit_generator)
             # Compute the unit keys we need to download
             wanted = upstream_unit_keys.difference(
-                u.unit_key_as_named_tuple for u in unit_generator)
-            for existing_key in upstream_unit_keys.difference(wanted):
-                existing = k2u[existing_key]
+                u.unit_key_as_named_tuple for u in available_units)
+            for existing in available_units:
                 # Existing units get re-associated
                 yumsync.repo_controller.associate_single_unit(
                     self.conduit.repo, existing)
-            to_download[model_class] = [k2u[k] for k in wanted]
+            to_download[model_class] = [
+                u for u in units if u.unit_key_as_named_tuple in wanted]
 
         unit_counts = dict()
         flattened = set()
