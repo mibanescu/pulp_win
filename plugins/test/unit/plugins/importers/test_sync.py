@@ -7,6 +7,7 @@ import os
 
 from .... import testbase
 from pulp_win.plugins.importers import sync
+from pulp_win.plugins.importers.report import ContentReport
 
 
 class TestSync(testbase.TestCase):
@@ -180,6 +181,14 @@ class TestSync(testbase.TestCase):
             [x.id for x in existing_units],
             [x[0][1].id
              for x in _repo_controller.associate_single_unit.call_args_list])
+
+    def test_content_report_set_initial_values(self):
+        cr = ContentReport()
+        # No MSI. Should not fail
+        cr.set_initial_values(dict(msm=42), 1024)
+
+        self.assertEquals(42, cr['details']['msm_total'])
+        self.assertEquals(0, cr['details']['msi_total'])
 
 
 REPOMD_XML = """\

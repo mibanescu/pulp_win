@@ -53,7 +53,7 @@ class ContentReport(dict):
         self['items_total'] = sum(counts.values())
         self['items_left'] = sum(counts.values())
         for total_name, total_type in type_total_map.iteritems():
-            self['details'][total_name] = counts[total_type]
+            self['details'][total_name] = counts.get(total_type, 0)
 
     def success(self, model):
         self['items_left'] -= 1
