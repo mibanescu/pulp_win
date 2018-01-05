@@ -14,7 +14,7 @@ from pulp_win.plugins.importers.report import ContentReport
 
 from pulp_rpm.plugins import error_codes
 from pulp_rpm.plugins.importers.yum.listener import PackageListener
-from pulp_rpm.plugins.importers.yum.repomd import alternate, packages, primary
+from pulp_rpm.plugins.importers.yum.repomd import alternate, metadata, packages, primary
 from pulp_rpm.plugins.importers.yum import sync as yumsync
 
 _logger = logging.getLogger(__name__)
@@ -108,6 +108,55 @@ class RepoSync(yumsync.RepoSync):
             _logger.info(_('Sync complete.'))
             return self.conduit.build_success_report(self._progress_summary,
                                                      self.progress_report)
+
+    def check_metadata(self, url):
+        """
+        Download and parse repomd.xml
+
+        If the download fails, sets the "skip_repomd_steps" attribute to True and populates the
+        "repomd_not_found_reason" attribute.
+
+        :param url: curret URL we should sync
+        :type url: str
+
+        :return:    instance of MetadataFiles
+        :rtype:     pulp_rpm.plugins.importers.yum.repomd.metadata.MetadataFiles
+
+        :raises PulpCodedException: if the metadata cannot be parsed
+        """
+        _logger.info(_('Downloading metadata from %(feed)s.') % {'feed': url})
+        metadata_files = metadata.MetadataFiles(url, self.tmp_dir, self.nectar_config,
+                                                self._url_modify)
+        _logger.error(self.tmp_dir)
+        try:
+            metadata_files.download_repomd()
+        except IOError as e:
+            # remember the reason so it can be reported to the user if no treeinfo is found either.
+            self.repomd_not_found_reason = e.message
+            _logger.debug(_('No yum repo metadata found.'))
+            # set flag to True in order to skip repomd steps, since metadata was not found
+            self.skip_repomd_steps = True
+            return
+
+        self.skip_repomd_steps = False
+        self.metadata_found = True
+        _logger.info(_('Parsing metadata.'))
+
+        try:
+            metadata_files.parse_repomd()
+        except PulpCodedException, e:
+            # Specifically ignore concerns about missing 'filelists' and 'other' xmls
+            if (e.error_code == error_codes.RPM1015):
+                reason = e.error_data.get('reason')
+                ignore_reasons = ['"{}" metadata is not found in repomd.xml'.format(s)
+                                    for s in ['filelists', 'other']]
+                if reason not in ignore_reasons:
+                    raise
+        except ValueError:
+            _logger.debug(traceback.format_exc())
+            raise PulpCodedException(error_code=error_codes.RPM1006)
+        _logger.info(metadata_files)
+        return metadata_files
 
     def update_content(self, metadata_files, url):
         """
@@ -240,7 +289,6 @@ class RepoSync(yumsync.RepoSync):
 
 class CustomPackageListener(PackageListener):
     def download_succeeded(self, report):
-        _logger.info("%s: download succeeded", report.data._content_type_id)
         with util.deleting(report.destination):
             unit = report.data
             try:
@@ -248,6 +296,7 @@ class CustomPackageListener(PackageListener):
             except (verification.VerificationException,
                     util.InvalidChecksumType):
                 # verification failed, unit not added
+                _logger.error("%s: download failed", report.data._content_type_id)
                 return
 
             # At this point, the checksum validation should have already

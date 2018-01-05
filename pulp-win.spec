@@ -5,14 +5,14 @@
 %define pulp_server 1
 
 # define required pulp platform version.
-%define pulp_version 2.10.1
+%define pulp_version 2.15.0
 
 %define inst_prefix pulp_win
 
 # ---- Pulp (win) --------------------------------------------------------------
 
 Name: pulp-win
-Version: 3.1.1
+Version: 3.2.0
 Release: 1%{?dist}
 Summary: Support for Windows content in the Pulp platform
 Group: Development/Languages

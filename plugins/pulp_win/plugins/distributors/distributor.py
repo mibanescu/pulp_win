@@ -16,6 +16,8 @@ from . import configuration
 # Unfortunately, we need to reach into pulp_rpm in order to generate repomd
 from pulp_rpm.plugins.distributors.yum.metadata.repomd import RepomdXMLFileContext  # noqa
 from pulp_rpm.plugins.distributors.yum.metadata.primary import PrimaryXMLFileContext  # noqa
+from pulp_rpm.plugins.distributors.yum.metadata.filelists import FilelistsXMLFileContext  # noqa
+from pulp_rpm.plugins.distributors.yum.metadata.other import OtherXMLFileContext  # noqa
 
 
 _LOG = logging.getLogger(__name__)
@@ -111,11 +113,23 @@ class RepomdStep(PluginStep):
                                     self.parent.publish_msm.units)
             for unit in units:
                 primary.add_unit_metadata(unit)
+        with FilelistsXMLFileContext(wd, checksum_type) as filelists:
+            for unit in units:
+                filelists.add_unit_metadata(unit)
+        with OtherXMLFileContext(wd, checksum_type) as other:
+            for unit in units:
+                other.add_unit_metadata(unit)
 
         with RepomdXMLFileContext(wd, checksum_type) as repomd:
             repomd.add_metadata_file_metadata('primary',
                                               primary.metadata_file_path,
                                               primary.checksum)
+            repomd.add_metadata_file_metadata('filelists',
+                                              filelists.metadata_file_path,
+                                              filelists.checksum)
+            repomd.add_metadata_file_metadata('other',
+                                              other.metadata_file_path,
+                                              other.checksum)
 
 
 class _PublishStep(UnitModelPluginStep):

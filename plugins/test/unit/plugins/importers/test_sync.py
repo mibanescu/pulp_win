@@ -81,6 +81,8 @@ class TestSync(testbase.TestCase):
         _xml_content = {
             "repomd.xml": REPOMD_XML,
             "CSUM1-primary.xml": REPODATA_PRIMARY_XML,
+            "filelists.xml": REPODATA_FILELISTS_XML,
+            "other.xml": REPODATA_OTHER_XML,
         }
 
         def mock_download(requests):
@@ -204,6 +206,22 @@ REPOMD_XML = """\
     <open-size>895</open-size>
     <open-checksum type="sha256">CSUM2</open-checksum>
   </data>
+  <data type="filelists">
+    <location href="repodata/filelists.xml"/>
+    <timestamp>1476732857</timestamp>
+    <size>123</size>
+    <checksum type="sha256">CSUM1</checksum>
+    <open-size>895</open-size>
+    <open-checksum type="sha256">CSUM2</open-checksum>
+  </data>
+  <data type="other">
+    <location href="repodata/other.xml"/>
+    <timestamp>1476732858</timestamp>
+    <size>456</size>
+    <checksum type="sha256">CSUM1</checksum>
+    <open-size>895</open-size>
+    <open-checksum type="sha256">CSUM2</open-checksum>
+  </data>
 </repomd>
 """
 
@@ -240,3 +258,15 @@ REPODATA_PRIMARY_XML = """\
   </package>
 </metadata>
 """ # noqa
+
+REPODATA_FILELISTS_XML = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="sha256">
+</filelists>
+"""
+
+REPODATA_OTHER_XML = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<otherdata xmlns="http://linux.duke.edu/metadata/other" packages="sha256">
+</otherdata>
+"""

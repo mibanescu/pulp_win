@@ -3,6 +3,7 @@ import logging
 import os
 import subprocess
 import mongoengine
+from pulp.plugins.util import verification
 from pulp.server import util
 from pulp.server.controllers import repository as repo_controller
 from pulp.server.db.model import FileContentUnit
@@ -138,6 +139,17 @@ class Package(FileContentUnit):
 
     def get_symlink_name(self):
         return self.filename
+
+    def verify_size(self, location):
+        """
+        Verify size of the file at the specified location
+
+        :param location: path to the unit location
+        :type  location: str
+        """
+        if self.size is not None:
+            with open(location) as fp:
+                verification.verify_size(fp, self.size)
 
     @property
     def all_properties(self):
