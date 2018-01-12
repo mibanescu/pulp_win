@@ -1,6 +1,7 @@
 import logging
 import shutil
 import tempfile
+import traceback
 from gettext import gettext as _
 
 from pulp.common.plugins import importer_constants
