@@ -1,19 +1,28 @@
 pulp_win
 ========
 
-Initial Pulp plugin to handle Windows MSI packages
+Pulp plugin to handle Windows MSI packages
 
-WARNING: Might be lots of bugs.
+The plugin supports the following unit types:
+* msi
+* msm
+
+Packages are being published in a repomd format (specific to yum repositories,
+but extendable).
 
 ### Requirements
 
-Admin extensions do not need any additional tools.
+Admin extensions do not need additional tools.
+
 Server extensions need msitools, which is available in Fedora. The Fedora 23
 package has been confirmed to work on CentOS 7.
 
 ### Installation
 
-Build the RPMs from spec file
+Build the RPMs from spec file.
+
+To enable the plugin, you will need to stop pulp services and migrate the
+database, and then restart the services.
 
 ```
 Example Usage:
