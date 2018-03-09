@@ -270,6 +270,7 @@ class TestWinImporter(testbase.TestCase):
             pulp_user_metadata=dict(),
             relativepath=None,
             size=None,
+            ModuleDependency=[]
         )
         unit_key = dict((x, metadata[x])
                         for x in models.MSM.unit_key_fields)

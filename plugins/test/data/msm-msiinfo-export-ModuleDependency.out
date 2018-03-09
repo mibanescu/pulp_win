@@ -1,0 +1,4 @@
+ModuleID        ModuleLanguage  RequiredID      RequiredLanguage        RequiredVersion
+s72     i2      s72     i2      S32
+ModuleDependency        ModuleID        ModuleLanguage  RequiredID      RequiredLanguage
+foobar.8E012345_0123_4567_0123_0123456789AB       1033    sasenvesntl     1033

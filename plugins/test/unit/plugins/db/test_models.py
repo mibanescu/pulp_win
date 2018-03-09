@@ -171,12 +171,15 @@ class TestModel(testbase.TestCase):
     @mock.patch("pulp_win.plugins.db.models.subprocess.Popen")
     def test_from_file_msm(self, _Popen):
         msm_md_path = os.path.join(DATA_DIR, "msm-msiinfo-export.out")
+        msm_mm_path = os.path.join(DATA_DIR, "msm-msiinfo-export-ModuleDependency.out")
         msm_md = open(msm_md_path).read()
+        msm_mm = open(msm_mm_path).read()
         popen = _Popen.return_value
         popen.configure_mock(returncode=0)
         popen.communicate.side_effect = [
-            ("ModuleSignature", ""),
+            ("ModuleSignature\nModuleDependency", ""),
             (msm_md, ""),
+            (msm_mm, "")
         ]
         metadata = dict(checksumtype='sha256',
                         checksum='doesntmatter')
@@ -188,6 +191,7 @@ class TestModel(testbase.TestCase):
                           pkg.unit_key['version'])
         self.assertEquals("8E012345_0123_4567_0123_0123456789AB",
                           pkg.guid)
+        self.assertListEqual([{"name": "sasenvesntl"}], pkg.ModuleDependency)
 
     def test_render_primary_msi(self):
         pkg = models.MSI(name="burgundy", version="1.1.1984.0",

@@ -302,11 +302,27 @@ class MSM(Package):
     unit_description = 'MSM'
 
     guid = mongoengine.StringField()
+    ModuleDependency = mongoengine.ListField()
 
     # For backward compatibility
     _ns = mongoengine.StringField(default=meta['collection'])
     _content_type_id = mongoengine.StringField(required=True,
                                                default=TYPE_ID)
+
+    @classmethod
+    def _read_msm_module_dependency(cls, filename):
+        # https://msdn.microsoft.com/en-us/library/windows/desktop/aa370046(v=vs.85).aspx
+        cmd = [MSIINFO_PATH, 'export', filename, 'ModuleDependency']
+        stdout, _ = cls._run_cmd(cmd)
+        # According to the document linked above, the ModuleID is always name.GUID.
+        metadata = []
+        for row in stdout.split('\n'):
+            if '.' not in row or len(row.split()) != 4:
+                continue
+            name =row.rstrip().split()[-2]
+            metadata.append(dict(name=name))
+        metadata.sort(key=lambda x: x['name'])
+        return metadata
 
     @classmethod
     def _read_metadata(cls, filename):
@@ -327,4 +343,11 @@ class MSM(Package):
             raise InvalidPackageError(
                 "Not a valid MSM: more than one entry in ModuleSignature")
         metadata = module_signature[0]
+
+        if 'ModuleDependency' in tables:
+            module_dependency = cls._read_msm_module_dependency(filename)
+        else:
+            module_dependency = []
+        metadata['ModuleDependency'] = module_dependency
+
         return metadata
