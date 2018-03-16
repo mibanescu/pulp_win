@@ -12,7 +12,7 @@
 # ---- Pulp (win) --------------------------------------------------------------
 
 Name: pulp-win
-Version: 3.2.0
+Version: 3.3.0
 Release: 1%{?dist}
 Summary: Support for Windows content in the Pulp platform
 Group: Development/Languages

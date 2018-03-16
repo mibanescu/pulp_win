@@ -17,11 +17,11 @@ def migrate(*args, **kwargs):
     # Collect all units without ModuleDependency
     mds = dict()
     for unit in collection.find({'ModuleDependency':{'$exists':False}}):
-        md = MSM._read_metadata(unit['_storage_path'])
-        mds[unit['_id']] = md
+        if not os.path.exists(unit['_storage_path']):
+            module_dep = []
+        else:
+            md = MSM._read_metadata(unit['_storage_path'])
+            module_dep = md.get('ModuleDependency', [])
 
-    # Add the ModuleDependency property
-    for _id, metadata in mds.items():
-        module_dep = metadata.get('ModuleDependency', [])
-        collection.update_one(dict(_id=_id),
+        collection.update_one(dict(_id=unit['_id']),
                               {'$set': dict(ModuleDependency=module_dep)})
